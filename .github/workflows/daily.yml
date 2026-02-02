@@ -3,10 +3,8 @@
 ---
 # https://docs.github.com/actions/learn-github-actions
 name: daily
-'on':
-  schedule:
-    # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
-    - cron: '29 20 * * *'
+on:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.sha }}
@@ -26,154 +24,8 @@ env:
   SIGN_PKG_KEY_ID: 'BDCF067D3908B2727A4A948767C1003740BF8DC2'
 
 jobs:
-  linux-glibc:
-    if: ${{ github.repository_owner == 'curl' }}
-    name: 'Linux glibc (arm64, amd64)'
-    runs-on: 'ubuntu-latest'
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-          fetch-depth: '300'
-      - name: 'build'
-        env:
-          COSIGN_AGE_PASS: '${{ secrets.COSIGN_AGE_PASS }}'
-          COSIGN_KEY_PASS: '${{ secrets.COSIGN_KEY_PASS }}'
-          MINISIGN_AGE_PASS: '${{ secrets.MINISIGN_AGE_PASS }}'
-          MINISIGN_KEY_PASS: '${{ secrets.MINISIGN_KEY_PASS }}'
-          SIGN_PKG_AGE_PASS: '${{ secrets.SIGN_PKG_AGE_PASS }}'
-          SIGN_PKG_KEY_PASS: '${{ secrets.SIGN_PKG_KEY_PASS }}'
-        run: |
-          export CW_CONFIG='werror-dev-linux-a64-x64'
-          export CW_REVISION; CW_REVISION="$(TZ=UTC date +'%Y%m%d')"
-          . ./_versions.sh
-          export CW_CCSUFFIX='-19'
-          export CW_GCCSUFFIX='-14'
-          sudo podman image trust set --type reject default
-          sudo podman image trust set --type accept docker.io/library
-          time podman pull "${OCI_IMAGE_DEBIAN_STABLE}"
-          podman images --digests
-          time podman run --volume "$(pwd):$(pwd)" --workdir "$(pwd)" \
-            --env-file <(env | grep -a -E \
-              '^(CW_|SIGN_|COSIGN_|MINISIGN_|GITHUB_|DO_NOT_TRACK)') \
-            "${OCI_IMAGE_DEBIAN_STABLE}" \
-            sh -c ./_ci-linux-debian.sh
-
-      - name: 'list dependencies'
-        run: cat urls.txt ./*-version-*.txt || true
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: 'curl-linux-glibc-daily-tool'
-          retention-days: 42
-          path: |
-            curl-*-*-*/curl*
-            curl-*-*-*/trurl*
-
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: 'curl-linux-glibc-daily'
-          retention-days: 42
-          path: |
-            *-*-linux*.*
-            urls.txt
-
-  linux-musl:
-    if: ${{ github.repository_owner == 'curl' }}
-    name: 'Linux MUSL (arm64, amd64, riscv64)'
-    runs-on: 'ubuntu-latest'
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-          fetch-depth: '300'
-      - name: 'build'
-        env:
-          COSIGN_AGE_PASS: '${{ secrets.COSIGN_AGE_PASS }}'
-          COSIGN_KEY_PASS: '${{ secrets.COSIGN_KEY_PASS }}'
-          MINISIGN_AGE_PASS: '${{ secrets.MINISIGN_AGE_PASS }}'
-          MINISIGN_KEY_PASS: '${{ secrets.MINISIGN_KEY_PASS }}'
-          SIGN_PKG_AGE_PASS: '${{ secrets.SIGN_PKG_AGE_PASS }}'
-          SIGN_PKG_KEY_PASS: '${{ secrets.SIGN_PKG_KEY_PASS }}'
-        run: |
-          export CW_CONFIG='werror-dev-linux-a64-r64-x64-musl'
-          export CW_REVISION; CW_REVISION="$(TZ=UTC date +'%Y%m%d')"
-          . ./_versions.sh
-          sudo podman image trust set --type reject default
-          sudo podman image trust set --type accept docker.io/library
-          time podman pull "${OCI_IMAGE_DEBIAN_TESTING}"
-          podman images --digests
-          time podman run --volume "$(pwd):$(pwd)" --workdir "$(pwd)" \
-            --env-file <(env | grep -a -E \
-              '^(CW_|SIGN_|COSIGN_|MINISIGN_|GITHUB_|DO_NOT_TRACK)') \
-            "${OCI_IMAGE_DEBIAN_TESTING}" \
-            sh -c ./_ci-linux-debian.sh
-
-      - name: 'list dependencies'
-        run: cat urls.txt ./*-version-*.txt || true
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: 'curl-linux-musl-daily-tool'
-          retention-days: 42
-          path: |
-            curl-*-*-*/curl*
-            curl-*-*-*/trurl*
-
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: 'curl-linux-musl-daily'
-          retention-days: 42
-          path: |
-            *-*-linux*.*
-            urls.txt
-
-  mac:
-    if: ${{ github.repository_owner == 'curl' }}
-    name: 'macOS (arm64, x86_64)'
-    runs-on: 'macos-latest'
-    timeout-minutes: 30
-    env:
-      CW_JOBS: '4'
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-          fetch-depth: '300'
-      - name: 'build'
-        env:
-          COSIGN_AGE_PASS: '${{ secrets.COSIGN_AGE_PASS }}'
-          COSIGN_KEY_PASS: '${{ secrets.COSIGN_KEY_PASS }}'
-          MINISIGN_AGE_PASS: '${{ secrets.MINISIGN_AGE_PASS }}'
-          MINISIGN_KEY_PASS: '${{ secrets.MINISIGN_KEY_PASS }}'
-          SIGN_PKG_AGE_PASS: '${{ secrets.SIGN_PKG_AGE_PASS }}'
-          SIGN_PKG_KEY_PASS: '${{ secrets.SIGN_PKG_KEY_PASS }}'
-        run: |
-          export CW_CONFIG='werror-dev-mac-macuni'
-          export CW_REVISION; CW_REVISION="$(TZ=UTC date +'%Y%m%d')"
-          sh -c ./_ci-mac-homebrew.sh
-
-      - name: 'list dependencies'
-        run: cat urls.txt ./*-version-*.txt || true
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: 'curl-macos-universal-daily-tool'
-          retention-days: 42
-          path: |
-            curl-*-universal-*/curl*
-            curl-*-universal-*/trurl*
-
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: 'curl-macos-universal-daily'
-          retention-days: 42
-          path: |
-            *-*-macos*.*
-            urls.txt
-
   win:
-    if: ${{ github.repository_owner == 'curl' }}
-    name: 'Windows (arm64, x64)'
+    name: 'Windows x64'
     runs-on: 'ubuntu-latest'
     timeout-minutes: 30
     steps:
@@ -190,10 +42,10 @@ jobs:
           SIGN_PKG_AGE_PASS: '${{ secrets.SIGN_PKG_AGE_PASS }}'
           SIGN_PKG_KEY_PASS: '${{ secrets.SIGN_PKG_KEY_PASS }}'
           CW_LLVM_MINGW_DL: '1'
-          CW_LLVM_MINGW_ONLY: '0'
+          CW_LLVM_MINGW_ONLY: '1'
         run: |
           export CW_CONFIG='werror-dev-win'
-          export CW_REVISION; CW_REVISION="$(TZ=UTC date +'%Y%m%d')"
+          export CW_REVISION="$(TZ=UTC date +'%Y%m%d')"
           . ./_versions.sh
           sudo podman image trust set --type reject default
           sudo podman image trust set --type accept docker.io/library
@@ -208,14 +60,6 @@ jobs:
       - name: 'list dependencies'
         run: cat urls.txt ./*-version-*.txt || true
       # https://github.com/actions/upload-artifact
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: 'curl-windows-daily-tool'
-          retention-days: 42
-          path: |
-            curl-*-*-*/curl*
-            curl-*-*-*/trurl*
-
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: 'curl-windows-daily'
